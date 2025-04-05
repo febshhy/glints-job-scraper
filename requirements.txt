@@ -1,0 +1,4 @@
+selenium==4.30.0 
+beautifulsoup4==4.13.3 
+tqdm==4.67.1 
+polars-lts-cpu==1.26.0 
