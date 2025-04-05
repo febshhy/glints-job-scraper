@@ -3,4 +3,5 @@
 !.gitignore
 !requirements.txt
 !scraper.py
-
+!LICENSE
+!README.md
