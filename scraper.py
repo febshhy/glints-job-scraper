@@ -230,14 +230,14 @@ def extract_all_job_details(links, browser):
 
 def create_output_path(job_name, format_name):
     timestamp = get_timestamp()
-    job_dir = os.path.join(os.getcwd(), job_name)
-    
+    job_dir = os.path.join(os.getcwd(), "results", job_name)
     try:
         os.makedirs(job_dir, exist_ok=True)
         return os.path.join(job_dir, f"{timestamp}.{format_name}")
     except OSError as e:
         print(f"Error creating directory: {str(e)}")
         return os.path.join(os.getcwd(), f"{job_name}_{timestamp}.{format_name}")
+
 
 def save_to_json(jobs, job_name):
     if not jobs:
