@@ -6,7 +6,6 @@ It searches for jobs based on user-defined keywords and exports the results in y
 > ⚠️ **Disclaimer:**  
 > For educational use only. No liability assumed.
 
----
 
 ## 📋 Features
 
@@ -15,7 +14,6 @@ It searches for jobs based on user-defined keywords and exports the results in y
 - CLI-based interaction
 - Collects key job and company information
 
----
 
 ## 🧾 Scraped Data Fields
 
@@ -60,7 +58,6 @@ It searches for jobs based on user-defined keywords and exports the results in y
    python scraper.py
    ```
 
----
 
 ## 🚀 How to Use
 
@@ -81,5 +78,3 @@ It searches for jobs based on user-defined keywords and exports the results in y
 - Some results may require additional cleaning or preprocessing depending on your use case.
 - Make sure you have a stable internet connection while scraping.
 - Hitting the Web Rate Limiter is expected. More robust error handling is needed
-
----
