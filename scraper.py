@@ -1,5 +1,6 @@
 from selenium import webdriver
-from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.firefox.options import Options as Firefox_Options
+from selenium.webdriver.chrome.options import Options as Chrome_Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -301,15 +302,33 @@ def main():
     
     try:
         # Set up the browser
-        options = Options()
-        options.add_argument("--headless")
-        options.set_preference("general.useragent.override", 
-                             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0")
+        valid_formats = ["1", "2"]
+        browser_choice = None
         
-        print("\nInitializing browser session...")
-        browser = webdriver.Firefox(options=options)
+        while browser_choice not in valid_formats:
+            print("Select you browser:")
+            print("  1. Mozilla Firefox")
+            print("  2. Google Chrome")
+            browser_choice = input("\nYour choice (1-2): ")
+             
+        print("\nInitializing browser session...")        
         
-
+        
+        match browser_choice:
+            case "1":
+                options = Firefox_Options()
+                options.add_argument("--headless")
+                options.set_preference("general.useragent.override", 
+                             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0,gzip(gfe) ")
+                browser = webdriver.Firefox(options=options)
+            case "2":
+                options = Chrome_Options()
+                options.add_argument("--headless")
+                options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36")
+                options.add_experimental_option('excludeSwitches', ['enable-logging'])
+                browser = webdriver.Chrome(options=options)
+            
+                
         login_attempts = 0
         max_login_attempts = 3
         
@@ -346,6 +365,7 @@ def main():
         
 
         print("\nData Export Configuration")
+        
         valid_formats = ["1", "2", "3"]
         file_format = None
         
@@ -379,12 +399,13 @@ def main():
 
             print(f"\nPreparing to export {len(jobs)} {job_title} job listings")
             
-            if file_format == "1":
-                save_to_json(jobs, job_title)
-            elif file_format == "2":
-                save_to_csv(jobs, job_title)
-            elif file_format == "3":
-                save_to_parquet(jobs, job_title)
+            match file_format:
+                case "1":
+                    save_to_json(jobs, job_title)
+                case "2":
+                    save_to_csv(jobs, job_title)
+                case "3":
+                    save_to_parquet(jobs, job_title)
         
         print("\nAll operations completed successfully!")
         print("="*60)
