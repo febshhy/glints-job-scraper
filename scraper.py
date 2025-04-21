@@ -84,17 +84,21 @@ def request_page(job_title, page_num, browser):
         print(f"\nUnexpected error loading page {page_num} for '{job_title}': {str(e)}. Skipping...")
         return None
 
-def extract_job_links(html):
+def extract_job_links(html, job_title):
     if not html:
         return []
         
-    jobs = html.find_all("div", class_="JobCardsc__JobcardContainer-sc-hmqj50-0 iirqVR CompactOpportunityCardsc__CompactJobCardWrapper-sc-dkg8my-5 hRilQl")
+    jobs = html.find_all("a", class_="CompactOpportunityCardsc__JobCardTitleNoStyleAnchor-sc-dkg8my-12")
     links = []
     
     for job in jobs:
-        job_link = job.find("a", class_="CompactOpportunityCardsc__JobCardTitleNoStyleAnchor-sc-dkg8my-12 jHptbP", href=True)
-        if job_link and 'href' in job_link.attrs:
-            links.append(job_link['href'])
+        
+        if not job.has_attr('href') or not job.text:
+            continue
+        
+        job_validation = job.text.strip().lower()
+        if job_title.lower() in job_validation:
+            links.append(job['href'])
             
     return links
 
@@ -109,7 +113,7 @@ def collect_job_links(job_title, browser):
         print(f"No results found for '{job_title}' or error loading first page")
         return []
         
-    first_page_links = extract_job_links(first_page)
+    first_page_links = extract_job_links(first_page, job_title)
     all_links.extend(first_page_links)
     
   
@@ -126,7 +130,7 @@ def collect_job_links(job_title, browser):
         for page_num in tqdm(range(2, last_page_num + 1), desc=f"Collecting {job_title} listings", colour='green'):
             page = request_page(job_title, page_num, browser)
             if page:
-                page_links = extract_job_links(page)
+                page_links = extract_job_links(page, job_title)
                 all_links.extend(page_links)
             # Continue to next page even if current page failed
             
