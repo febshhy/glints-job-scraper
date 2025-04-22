@@ -171,7 +171,7 @@ def request_page(job_title, page_num, browser):
         print(f"\nUnexpected error loading page {page_num} for '{job_title}': {str(e)}. Skipping...")
         return None
 
-def extract_job_links(html, job_title):
+def extract_job_links(html, job_title, details_level):
     if not html:
         return []
         
@@ -185,11 +185,19 @@ def extract_job_links(html, job_title):
         
         job_validation = job.text.strip().lower()
         if job_title.lower() in job_validation:
-            links.append(job['href'])
+            if details_level == 1:
+                links.append({
+                    "title": job.get_text(),
+                    "url": "https://glints.com" + url,
+                    "timestamp": get_timestamp(),
+                    
+                })
+            else:
+                links.append(job['href'])
             
     return links
 
-def collect_job_links(job_title, browser):
+def collect_job_links(job_title, browser, details_level):
     print(f"\nAnalyzing job market for: {job_title}")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     
@@ -200,7 +208,7 @@ def collect_job_links(job_title, browser):
         print(f"No results found for '{job_title}' or error loading first page")
         return []
         
-    first_page_links = extract_job_links(first_page, job_title)
+    first_page_links = extract_job_links(first_page, job_title, details_level)
     all_links.extend(first_page_links)
     
   
@@ -217,7 +225,7 @@ def collect_job_links(job_title, browser):
         for page_num in tqdm(range(2, last_page_num + 1), desc=f"Collecting {job_title} listings", colour='green'):
             page = request_page(job_title, page_num, browser)
             if page:
-                page_links = extract_job_links(page, job_title)
+                page_links = extract_job_links(page, job_title, details_level)
                 all_links.extend(page_links)
             
         print(f"Successfully gathered {len(all_links)} {job_title} listings")
@@ -231,11 +239,10 @@ def get_timestamp():
     return datetime.now(timezone.utc).isoformat(timespec='seconds').replace(":", "-")
 
 def extract_text(soup, selector, default="No Data"):
-    """Helper function to safely extract text from a CSS selector"""
     element = soup.select_one(selector)
     return element.get_text() if element else default
 
-def extract_job_details(url, browser):
+def extract_job_details(url, browser, details_level):
     full_url = "https://glints.com" + url
     
     try:
@@ -283,23 +290,30 @@ def extract_job_details(url, browser):
         company_industry = extract_text(page, ".AboutCompanySectionsc__CompanyIndustryAndSize-sc-c7oevo-7 > span:nth-child(1)", "Undisclosed")
         company_size = extract_text(page, ".AboutCompanySectionsc__CompanyIndustryAndSize-sc-c7oevo-7 > span:nth-child(3)", "Undisclosed")
         
-        return {
-            "title": title,
-            "salary": salary,
-            "job type": job_type,
-            "skills requirements": skills,
-            "education requirements": education,
-            "experience requirements": experience,
-            "another requirements": requirements,
-            "location (province)": province,
-            "location (city)": city,
-            "location (district)": district,
-            "company name": company_name,
-            "company industry": company_industry,
-            "company size": company_size,
-            "timestamp": get_timestamp(),
-            "url": full_url,
-        }
+        data = {
+                "title": title,
+                "description": description,
+                "salary": salary,
+                "job type": job_type,
+                "skills requirements": skills,
+                "education requirements": education,
+                "experience requirements": experience,
+                "another requirements": requirements,
+                "location (province)": province,
+                "location (city)": city,
+                "location (district)": district,
+                "company name": company_name,
+                "company industry": company_industry,
+                "company size": company_size,
+                "timestamp": get_timestamp(),
+                "url": full_url,
+            }
+        
+        if details_level == 3:
+            description = extract_text(page, "DraftjsReadersc__ContentContainer-sc-zm0o3p-0 pVRwR")
+            data["description"] = description
+        
+        return data
         
     except TimeoutException:
         print(f"Timeout while loading job details for {full_url}")
@@ -308,15 +322,14 @@ def extract_job_details(url, browser):
         print(f"Error extracting job details for {full_url}: {str(e)}")
         return None
 
-def extract_all_job_details(links, browser):
+def extract_all_job_details(links, browser, details_level):
     jobs = []
     
     for link in tqdm(links, desc="Extracting detailed job information", colour='red'):
-        job_details = extract_job_details(link, browser)
+        job_details = extract_job_details(link, browser, details_level)
         if job_details:
             jobs.append(job_details)
-
-            
+  
     return jobs
 
 def create_output_path(job_name, format_name):
@@ -383,9 +396,8 @@ def save_to_parquet(jobs, job_name):
         print(f"Error saving to Parquet: {e}")
         return False
     
-def initialize_browser():
+def initialize_browser(browser_choice = None):
     valid_formats = ["1", "2"]
-    browser_choice = None
     
     while browser_choice not in valid_formats:
         print("Select your browser:")
@@ -460,7 +472,7 @@ def login_sequence(browser, config):
             print("Maximum login attempts reached. Exiting.")
             return
 
-def scraper(browser):        
+def scraper(browser, details_level, file_format=None):        
     while True:
         job_searches = input("\nEnter job titles to search (separate multiple jobs with commas): ")
         job_search_list = [item.strip() for item in job_searches.split(",") if item.strip()]
@@ -474,7 +486,6 @@ def scraper(browser):
     print("\nData Export Configuration")
     
     valid_formats = ["1", "2", "3"]
-    file_format = None
     
     while file_format not in valid_formats:
         print("Select output format:")
@@ -490,14 +501,14 @@ def scraper(browser):
     print("\nStarting job search operation")
     for job_title in tqdm(job_search_list, desc="Processing job categories", leave=True):
 
-        links = collect_job_links(job_title, browser)
+        links = collect_job_links(job_title, browser, details_level)
         
         if not links:
             print(f"No job listings found for '{job_title}'. Skipping to next job title.")
             continue
             
 
-        jobs = extract_all_job_details(links, browser)
+        jobs = extract_all_job_details(links, browser, details_level)
         
         if not jobs:
             print(f"Failed to extract any job details for '{job_title}'. Skipping to next job title.")
@@ -522,7 +533,7 @@ def main():
     print("       GLINTS JOB MARKET INTELLIGENCE TOOL")
     print("="*60)
     config = load_config()
-    
+    details = config["Scraping"].get("detail_level", 2)
     try:
         
         while True:
@@ -536,7 +547,7 @@ def main():
             if choice == "1":
                 browser = initialize_browser()
                 login_sequence(browser, config)
-                scraper(browser)
+                scraper(browser, details)
             
             if choice == "2":
                 settings_menu(config)
