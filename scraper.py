@@ -15,6 +15,94 @@ import os
 import json
 import time
 
+def get_config_path():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+
+def load_config():
+    config_path = get_config_path()
+    
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+    else:
+        config = {
+            "User": {
+                "auto_login": False,  
+                "email": "",
+                "password": ""
+            },
+            "Scraping": {
+                "detail_level": 2,  
+            }
+        }
+        with open(config_path, 'w') as f:
+            json.dump(config, f, indent=4)
+    
+    return config
+
+def save_config(config):
+    """Save configuration to file"""
+    config_path = get_config_path()
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=4)
+
+def settings_menu(config):
+    """Display and handle settings menu"""
+    print("\n" + "="*60)
+    print(" SETTINGS")
+    print("="*60)
+    print("1. Change Auto-login Setting")
+    print("2. Change Scraping Detail Level")
+    print("3. Clear Saved Credentials")
+    print("4. Return to Main Menu")
+    
+    choice = input("\nEnter your choice (1-4): ")
+    
+    if choice == "1":
+        current = config["User"]["auto_login"]
+        print(f"\nCurrent auto-login setting: {'Enabled' if current else 'Disabled'}")
+        new_setting = input("Enable auto-login? (y/n): ").lower() == 'y'
+        config["User"]["auto_login"] = new_setting
+        print(f"Auto-login has been {'enabled' if new_setting else 'disabled'}")
+        save_config(config)
+        
+    elif choice == "2":
+        current = config["Scraping"]["detail_level"]
+        print(f"\nCurrent scraping detail level: {current}")
+        print("1 - Basic information")
+        print("2 - Standard detail")
+        print("3 - Maximum detail")
+        
+        while True:
+            try:
+                new_level = int(input("Enter new detail level (1-3): "))
+                if new_level in [1, 2, 3]:
+                    config["Scraping"]["detail_level"] = new_level
+                    print(f"Scraping detail level set to {new_level}")
+                    save_config(config)
+                    break
+                else:
+                    print("Please enter a number between 1 and 3")
+            except ValueError:
+                print("Please enter a valid number")
+                
+    elif choice == "3":
+        confirm = input("\nAre you sure you want to clear saved credentials? (y/n): ").lower() == 'y'
+        if confirm:
+            config["User"]["email"] = ""
+            config["User"]["password"] = ""
+            config["User"]["auto_login"] = False
+            save_config(config)
+            print("Credentials have been cleared")
+            
+    elif choice == "4":
+        return
+    else:
+        print("Invalid choice. Please enter a number between 1 and 4.")
+    
+    settings_menu(config)
+
+
 def login(browser, username, password):
     print("\n┌─────────────────────────────────┐")
     print("│ Attempting to log in to Glints  │")
@@ -60,7 +148,6 @@ def login(browser, username, password):
 
 def request_page(job_title, page_num, browser):
     try:
-        # Random delay to avoid rate limiting
         time.sleep(randint(2, 5))
         
         url = f"https://glints.com/id/opportunities/jobs/explore?keyword={job_title}&country=ID&locationName=All+Cities%2FProvinces&lowestLocationLevel=1&page={page_num}"
@@ -132,14 +219,13 @@ def collect_job_links(job_title, browser):
             if page:
                 page_links = extract_job_links(page, job_title)
                 all_links.extend(page_links)
-            # Continue to next page even if current page failed
             
-        print(f"Successfully gathered {len(all_links)} job listings")
+        print(f"Successfully gathered {len(all_links)} {job_title} listings")
         return all_links
         
     except (ValueError, IndexError) as e:
         print(f"Error parsing pagination: {str(e)}")
-        return all_links  # Return whatever links we've collected so far
+        return all_links  
 
 def get_timestamp():
     return datetime.now(timezone.utc).isoformat(timespec='seconds').replace(":", "-")
@@ -154,7 +240,7 @@ def extract_job_details(url, browser):
     
     try:
         browser.get(full_url)
-        time.sleep(randint(1, 3))  # Random delay to avoid rate limiting
+        time.sleep(randint(1, 3))  
         
         WebDriverWait(browser, 15).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, ".TopFoldsc__JobOverViewTitle-sc-1fbktg5-3"))
@@ -229,7 +315,7 @@ def extract_all_job_details(links, browser):
         job_details = extract_job_details(link, browser)
         if job_details:
             jobs.append(job_details)
-        # Continue to next link even if current link failed
+
             
     return jobs
 
@@ -268,7 +354,7 @@ def save_to_csv(jobs, job_name):
     try:
         df = pl.DataFrame(jobs)
         
-        # Convert list columns to strings for CSV compatibility
+
         df = df.with_columns(
             pl.col("skills requirements").map_elements(lambda x: ",".join(x) if isinstance(x, list) else "", return_dtype=pl.String),
             pl.col("another requirements").map_elements(lambda x: ",".join(x) if isinstance(x, list) else "", return_dtype=pl.String)
@@ -296,123 +382,169 @@ def save_to_parquet(jobs, job_name):
     except Exception as e:
         print(f"Error saving to Parquet: {e}")
         return False
+    
+def initialize_browser():
+    valid_formats = ["1", "2"]
+    browser_choice = None
+    
+    while browser_choice not in valid_formats:
+        print("Select your browser:")
+        print("  1. Mozilla Firefox")
+        print("  2. Google Chrome")
+        browser_choice = input("\nYour choice (1-2): ")
+            
+    print("\nInitializing browser session...")        
+    
+    match browser_choice:
+        case "1":
+            options = Firefox_Options()
+            options.add_argument("--headless")
+            options.set_preference("general.useragent.override", 
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0,gzip(gfe) ")
+            browser = webdriver.Firefox(options=options)
+        case "2":
+            options = Chrome_Options()
+            options.add_argument("--headless")
+            options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36")
+            options.add_experimental_option('excludeSwitches', ['enable-logging'])
+            browser = webdriver.Chrome(options=options)
+    
+    return browser
+
+def login_sequence(browser, config):
+    login_attempts = 0
+    max_login_attempts = 3
+    
+    print("\nAuthentication Required")
+    print("Please provide your Glints account credentials")
+        
+    username = config["User"].get("email", "")
+    password = config["User"].get("password", "")
+    auto_login = config["User"].get("auto_login", False)
+    
+    if auto_login and username and password:
+        print("\nAttempting auto-login...")
+
+        if login(browser, username, password):
+            print("\nAuto-login successful!")
+            return True
+        else:
+            print("Auto-login failed. Switching to manual login.")
+            login_attempts = 1
+    
+    while login_attempts < max_login_attempts:            
+        username = input("\nEmail address: ")
+        password = getpass.getpass("Password (hidden): ")
+        
+        print("\nVerifying credentials...")
+        if login(browser, username, password):
+            print("\nAuthentication successful!")
+            print("\nDo You Want to Save Your Credentials and Using Autologin?")
+            print("0. No | 1. Yes")
+            option = input("\nInput Your Choice (numbers only):")
+            if option:
+                config["User"]["email"] = username
+                config["User"]["password"] = password
+                config["User"]["auto_login"] = True
+                save_config(config)
+                print("\nCredentials Saved")
+             
+            break
+            
+        login_attempts += 1
+        remaining = max_login_attempts - login_attempts
+        
+        if remaining > 0:
+            print(f"Login failed. {remaining} attempts remaining.")
+        else:
+            print("Maximum login attempts reached. Exiting.")
+            return
+
+def scraper(browser):        
+    while True:
+        job_searches = input("\nEnter job titles to search (separate multiple jobs with commas): ")
+        job_search_list = [item.strip() for item in job_searches.split(",") if item.strip()]
+        
+        if job_search_list:
+            break
+            
+        print("Please enter at least one job title.")
+    
+
+    print("\nData Export Configuration")
+    
+    valid_formats = ["1", "2", "3"]
+    file_format = None
+    
+    while file_format not in valid_formats:
+        print("Select output format:")
+        print("  1. JSON  - Human-readable, ideal for further processing")
+        print("  2. CSV   - Compatible with spreadsheet applications")
+        print("  3. Parquet - Efficient storage, best for data analysis")
+        file_format = input("\nYour choice (1-3): ")
+        
+        if file_format not in valid_formats:
+            print("Invalid choice. Please select 1, 2, or 3.")
+    
+
+    print("\nStarting job search operation")
+    for job_title in tqdm(job_search_list, desc="Processing job categories", leave=True):
+
+        links = collect_job_links(job_title, browser)
+        
+        if not links:
+            print(f"No job listings found for '{job_title}'. Skipping to next job title.")
+            continue
+            
+
+        jobs = extract_all_job_details(links, browser)
+        
+        if not jobs:
+            print(f"Failed to extract any job details for '{job_title}'. Skipping to next job title.")
+            continue
+            
+
+        print(f"\nPreparing to export {len(jobs)} {job_title} job listings")
+        
+        match file_format:
+            case "1":
+                save_to_json(jobs, job_title)
+            case "2":
+                save_to_csv(jobs, job_title)
+            case "3":
+                save_to_parquet(jobs, job_title)
+    
+    print("\nAll operations completed successfully!")
+    print("="*60)
 
 def main():
     print("\n" + "="*60)
     print("       GLINTS JOB MARKET INTELLIGENCE TOOL")
     print("="*60)
-    
-    browser = None
+    config = load_config()
     
     try:
-        # Set up the browser
-        valid_formats = ["1", "2"]
-        browser_choice = None
         
-        while browser_choice not in valid_formats:
-            print("Select you browser:")
-            print("  1. Mozilla Firefox")
-            print("  2. Google Chrome")
-            browser_choice = input("\nYour choice (1-2): ")
-             
-        print("\nInitializing browser session...")        
-        
-        
-        match browser_choice:
-            case "1":
-                options = Firefox_Options()
-                options.add_argument("--headless")
-                options.set_preference("general.useragent.override", 
-                             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0,gzip(gfe) ")
-                browser = webdriver.Firefox(options=options)
-            case "2":
-                options = Chrome_Options()
-                options.add_argument("--headless")
-                options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36")
-                options.add_experimental_option('excludeSwitches', ['enable-logging'])
-                browser = webdriver.Chrome(options=options)
-            
-                
-        login_attempts = 0
-        max_login_attempts = 3
-        
-        print("\nAuthentication Required")
-        print("Please provide your Glints account credentials")
-        
-        while login_attempts < max_login_attempts:
-            username = input("\nEmail address: ")
-            password = getpass.getpass("Password (hidden): ")
-            
-            print("\nVerifying credentials...")
-            if login(browser, username, password):
-                print("\nAuthentication successful!")
-                break
-                
-            login_attempts += 1
-            remaining = max_login_attempts - login_attempts
-            
-            if remaining > 0:
-                print(f"Login failed. {remaining} attempts remaining.")
-            else:
-                print("Maximum login attempts reached. Exiting.")
-                return
-        
-        # Get job search terms
         while True:
-            job_searches = input("\nEnter job titles to search (separate multiple jobs with commas): ")
-            job_search_list = [item.strip() for item in job_searches.split(",") if item.strip()]
+            print("\nMain Menu")
+            print("1. Start Searching Job")
+            print("2. Settings")
+            print("3. Exit")
             
-            if job_search_list:
+            choice = input("\nInput Your Choice:")
+            browser = None
+            if choice == "1":
+                browser = initialize_browser()
+                login_sequence(browser, config)
+                scraper(browser)
+            
+            if choice == "2":
+                settings_menu(config)
+            
+            if choice == "3":
+                print("\nExiting program. Thank you for using This Tool.")
                 break
-                
-            print("Please enter at least one job title.")
-        
 
-        print("\nData Export Configuration")
-        
-        valid_formats = ["1", "2", "3"]
-        file_format = None
-        
-        while file_format not in valid_formats:
-            print("Select output format:")
-            print("  1. JSON  - Human-readable, ideal for further processing")
-            print("  2. CSV   - Compatible with spreadsheet applications")
-            print("  3. Parquet - Efficient storage, best for data analysis")
-            file_format = input("\nYour choice (1-3): ")
-            
-            if file_format not in valid_formats:
-                print("Invalid choice. Please select 1, 2, or 3.")
-        
-        # Process each job search
-        print("\nStarting job search operation")
-        for job_title in tqdm(job_search_list, desc="Processing job categories", leave=True):
-
-            links = collect_job_links(job_title, browser)
-            
-            if not links:
-                print(f"No job listings found for '{job_title}'. Skipping to next job title.")
-                continue
-                
-
-            jobs = extract_all_job_details(links, browser)
-            
-            if not jobs:
-                print(f"Failed to extract any job details for '{job_title}'. Skipping to next job title.")
-                continue
-                
-
-            print(f"\nPreparing to export {len(jobs)} {job_title} job listings")
-            
-            match file_format:
-                case "1":
-                    save_to_json(jobs, job_title)
-                case "2":
-                    save_to_csv(jobs, job_title)
-                case "3":
-                    save_to_parquet(jobs, job_title)
-        
-        print("\nAll operations completed successfully!")
-        print("="*60)
         
     except KeyboardInterrupt:
         print("\n\nOperation interrupted by user. Shutting down...")
