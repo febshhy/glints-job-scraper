@@ -1,0 +1,10 @@
+{
+    "User": {
+        "auto_login": true,
+        "email": "dadimeliora@gmail.com",
+        "password": "Kambing.51"
+    },
+    "Scraping": {
+        "detail_level": 2
+    }
+}
