@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 import os
 import json
 import time
+import argparse
 
 def get_config_path():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
@@ -292,7 +293,6 @@ def extract_job_details(url, browser, details_level):
         
         data = {
                 "title": title,
-                "description": description,
                 "salary": salary,
                 "job type": job_type,
                 "skills requirements": skills,
@@ -472,14 +472,14 @@ def login_sequence(browser, config):
             print("Maximum login attempts reached. Exiting.")
             return
 
-def scraper(browser, details_level, file_format=None):        
-    while True:
+def scraper(browser, details_level, file_format=None, job_search_list=None):        
+
+    if job_search_list:
+        job_search_list = [item.strip() for item in job_search_list.split(",") if item.strip()]
+    
+    while not job_search_list:
         job_searches = input("\nEnter job titles to search (separate multiple jobs with commas): ")
         job_search_list = [item.strip() for item in job_searches.split(",") if item.strip()]
-        
-        if job_search_list:
-            break
-            
         print("Please enter at least one job title.")
     
 
@@ -528,33 +528,76 @@ def scraper(browser, details_level, file_format=None):
     print("\nAll operations completed successfully!")
     print("="*60)
 
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description="Glints Job Market Intelligence Tool",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    
+    parser.add_argument('search', type=str, help='Job titles to search (add quotation "devops")')
+    parser.add_argument('-b', '--browser', type=str, choices=['chrome', 'firefox'], 
+                        default='firefox', help='Browser to use (default: firefox)')
+    parser.add_argument('-f', '--format', type=str, choices=['json', 'csv', 'parquet'], 
+                        default='json', help='Output format (default: json)')
+    parser.add_argument('-u', '--username', type=str, help='Glints account email')
+    parser.add_argument('-p', '--password', type=str, help='Glints account password')
+    parser.add_argument('-d', '--details', type=str, choices=[1, 2, 3], default = 2,
+                        help="Scraping Detail (default: level 2)")
+    
+    args = parser.parse_args()
+    
+    if (args.browser != 'firefox' or args.format != 'json') and not args.search:
+        parser.error("--browser and --format can only be used when --search is specified")
+    
+    if bool(args.username) != bool(args.password):
+        parser.error("Both --username and --password must be provided together")
+    
+    browser_map = {'firefox': '1', 'chrome': '2'}
+    format_map = {'json': '1', 'csv': '2', 'parquet': '3'}
+    
+    args.browser_code = browser_map[args.browser]
+    args.format_code = format_map[args.format]
+        
+    return args
+
 def main():
     print("\n" + "="*60)
     print("       GLINTS JOB MARKET INTELLIGENCE TOOL")
     print("="*60)
     config = load_config()
     details = config["Scraping"].get("detail_level", 2)
+    args = parse_arguments()
+    
     try:
-        
-        while True:
-            print("\nMain Menu")
-            print("1. Start Searching Job")
-            print("2. Settings")
-            print("3. Exit")
+        if args.search:
+            browser = initialize_browser(args.browser_code)
+            if args.username and args.password:
+                login(browser, args.username, args.password)
+            else:
+                login(browser, config["User"].get("email"), config["User"].get("password"))
+            scraper(browser, args.details, args.format_code, args.search)
             
-            choice = input("\nInput Your Choice:")
-            browser = None
-            if choice == "1":
-                browser = initialize_browser()
-                login_sequence(browser, config)
-                scraper(browser, details)
-            
-            if choice == "2":
-                settings_menu(config)
-            
-            if choice == "3":
-                print("\nExiting program. Thank you for using This Tool.")
-                break
+        else:        
+            while True:
+                print("\nMain Menu")
+                print("1. Start Searching Job")
+                print("2. Settings")
+                print("3. Exit")
+                
+                choice = input("\nInput Your Choice:")
+                browser = None
+                if choice == "1":
+                    browser = initialize_browser()
+                    login_sequence(browser, config)
+                    scraper(browser, details)
+                
+                if choice == "2":
+                    settings_menu(config)
+                
+                if choice == "3":
+                    print("\nExiting program. Thank you for using This Tool.")
+                    break
 
         
     except KeyboardInterrupt:
