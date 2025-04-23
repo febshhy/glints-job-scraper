@@ -1,5 +1,5 @@
 *
-
+config.json
 !.gitignore
 !requirements.txt
 !scraper.py
