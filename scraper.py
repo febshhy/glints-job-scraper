@@ -47,6 +47,128 @@ def save_config(config):
     with open(config_path, 'w') as f:
         json.dump(config, f, indent=4)
 
+def get_timestamp():
+    return datetime.now(timezone.utc).isoformat(timespec='seconds').replace(":", "-")
+
+def initialize_browser(browser_choice = None):
+    valid_formats = ["1", "2"]
+    
+    while browser_choice not in valid_formats:
+        print("Select your browser:")
+        print("  1. Mozilla Firefox")
+        print("  2. Google Chrome")
+        browser_choice = input("\nYour choice (1-2): ")
+            
+    print("\nInitializing browser session...")        
+    
+    match browser_choice:
+        case "1":
+            options = Firefox_Options()
+            options.add_argument("--headless")
+            options.set_preference("general.useragent.override", 
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0,gzip(gfe) ")
+            browser = webdriver.Firefox(options=options)
+        case "2":
+            options = Chrome_Options()
+            options.add_argument("--headless")
+            options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36")
+            options.add_experimental_option('excludeSwitches', ['enable-logging'])
+            browser = webdriver.Chrome(options=options)
+    
+    return browser
+
+def login(browser, username, password):
+    print("\n┌─────────────────────────────────┐")
+    print("│ Attempting to log in to Glints  │")
+    print("└─────────────────────────────────┘")
+    
+    try:
+        browser.get("https://glints.com/id/login")
+        WebDriverWait(browser, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "a.LinkStyle__StyledLink-sc-usx229-0:nth-child(3)"))
+        ).click()
+
+        WebDriverWait(browser, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "#login-form-email"))
+        ).send_keys(username)
+
+        WebDriverWait(browser, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "#login-form-password"))
+        ).send_keys(password)
+
+        WebDriverWait(browser, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, ".ButtonStyle__SolidShadowBtn-sc-jyb3o2-3"))
+        ).click()
+
+        WebDriverWait(browser, 10).until(
+            EC.any_of(
+                EC.presence_of_element_located((By.CSS_SELECTOR, ".ParagraphStyles__Paragraph-sc-1w5f8q5-0")),
+                EC.presence_of_element_located((By.CSS_SELECTOR, ".UserMenuComponentssc__NameHolder-sc-ovl5x6-4"))
+            )
+        )
+        
+        if browser.find_elements(By.CSS_SELECTOR, ".UserMenuComponentssc__NameHolder-sc-ovl5x6-4"):
+            return True
+            
+        print("\nAuthentication Error: Invalid credentials detected")
+        return False
+
+    except TimeoutException:
+        print("\nNetwork Error: Timeout during login process")
+        return False
+    except Exception as e:
+        print(f"\nSystem Error: Login failed - {str(e)}")
+        return False
+
+def login_sequence(browser, config):
+    login_attempts = 0
+    max_login_attempts = 3
+    
+    print("\nAuthentication Required")
+    print("Please provide your Glints account credentials")
+        
+    username = config["User"].get("email", "")
+    password = config["User"].get("password", "")
+    auto_login = config["User"].get("auto_login", False)
+    
+    if auto_login and username and password:
+        print("\nAttempting auto-login...")
+
+        if login(browser, username, password):
+            print("\nAuto-login successful!")
+            return True
+        else:
+            print("Auto-login failed. Switching to manual login.")
+            login_attempts = 1
+    
+    while login_attempts < max_login_attempts:            
+        username = input("\nEmail address: ")
+        password = getpass.getpass("Password (hidden): ")
+        
+        print("\nVerifying credentials...")
+        if login(browser, username, password):
+            print("\nAuthentication successful!")
+            print("\nDo You Want to Save Your Credentials and Using Autologin?")
+            print("0. No | 1. Yes")
+            option = input("\nInput Your Choice (numbers only):")
+            if option:
+                config["User"]["email"] = username
+                config["User"]["password"] = password
+                config["User"]["auto_login"] = True
+                save_config(config)
+                print("\nCredentials Saved")
+             
+            break
+            
+        login_attempts += 1
+        remaining = max_login_attempts - login_attempts
+        
+        if remaining > 0:
+            print(f"Login failed. {remaining} attempts remaining.")
+        else:
+            print("Maximum login attempts reached. Exiting.")
+            return
+
 def settings_menu(config):
     """Display and handle settings menu"""
     print("\n" + "="*60)
@@ -103,50 +225,6 @@ def settings_menu(config):
     
     settings_menu(config)
 
-
-def login(browser, username, password):
-    print("\n┌─────────────────────────────────┐")
-    print("│ Attempting to log in to Glints  │")
-    print("└─────────────────────────────────┘")
-    
-    try:
-        browser.get("https://glints.com/id/login")
-        WebDriverWait(browser, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "a.LinkStyle__StyledLink-sc-usx229-0:nth-child(3)"))
-        ).click()
-
-        WebDriverWait(browser, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "#login-form-email"))
-        ).send_keys(username)
-
-        WebDriverWait(browser, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "#login-form-password"))
-        ).send_keys(password)
-
-        WebDriverWait(browser, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, ".ButtonStyle__SolidShadowBtn-sc-jyb3o2-3"))
-        ).click()
-
-        WebDriverWait(browser, 10).until(
-            EC.any_of(
-                EC.presence_of_element_located((By.CSS_SELECTOR, ".ParagraphStyles__Paragraph-sc-1w5f8q5-0")),
-                EC.presence_of_element_located((By.CSS_SELECTOR, ".UserMenuComponentssc__NameHolder-sc-ovl5x6-4"))
-            )
-        )
-        
-        if browser.find_elements(By.CSS_SELECTOR, ".UserMenuComponentssc__NameHolder-sc-ovl5x6-4"):
-            return True
-            
-        print("\nAuthentication Error: Invalid credentials detected")
-        return False
-
-    except TimeoutException:
-        print("\nNetwork Error: Timeout during login process")
-        return False
-    except Exception as e:
-        print(f"\nSystem Error: Login failed - {str(e)}")
-        return False
-
 def request_page(job_title, page_num, browser):
     try:
         time.sleep(randint(2, 5))
@@ -171,6 +249,16 @@ def request_page(job_title, page_num, browser):
     except Exception as e:
         print(f"\nUnexpected error loading page {page_num} for '{job_title}': {str(e)}. Skipping...")
         return None
+
+def extract_text(soup, selector, default="No Data", flag=0):
+    element = soup.select_one(selector)
+    if element and flag:
+        return element.get_text(separator='\n', strip=True)
+    elif element:
+        return element.get_text()
+    else:
+        return default
+    
 
 def extract_job_links(html, job_title, details_level):
     if not html:
@@ -241,17 +329,7 @@ def collect_job_links(job_title, browser, details_level):
         print(f"Error parsing pagination: {str(e)}")
         return all_links  
 
-def get_timestamp():
-    return datetime.now(timezone.utc).isoformat(timespec='seconds').replace(":", "-")
 
-def extract_text(soup, selector, default="No Data", flag=0):
-    element = soup.select_one(selector)
-    if element and flag:
-        return element.get_text(separator='\n', strip=True)
-    elif element:
-        return element.get_text()
-    else:
-        return default
 
 def extract_job_details(url, browser, details_level):
     full_url = "https://glints.com" + url
@@ -409,81 +487,6 @@ def save_to_parquet(jobs, job_name):
         print(f"Error saving to Parquet: {e}")
         return False
     
-def initialize_browser(browser_choice = None):
-    valid_formats = ["1", "2"]
-    
-    while browser_choice not in valid_formats:
-        print("Select your browser:")
-        print("  1. Mozilla Firefox")
-        print("  2. Google Chrome")
-        browser_choice = input("\nYour choice (1-2): ")
-            
-    print("\nInitializing browser session...")        
-    
-    match browser_choice:
-        case "1":
-            options = Firefox_Options()
-            options.add_argument("--headless")
-            options.set_preference("general.useragent.override", 
-                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0,gzip(gfe) ")
-            browser = webdriver.Firefox(options=options)
-        case "2":
-            options = Chrome_Options()
-            options.add_argument("--headless")
-            options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36")
-            options.add_experimental_option('excludeSwitches', ['enable-logging'])
-            browser = webdriver.Chrome(options=options)
-    
-    return browser
-
-def login_sequence(browser, config):
-    login_attempts = 0
-    max_login_attempts = 3
-    
-    print("\nAuthentication Required")
-    print("Please provide your Glints account credentials")
-        
-    username = config["User"].get("email", "")
-    password = config["User"].get("password", "")
-    auto_login = config["User"].get("auto_login", False)
-    
-    if auto_login and username and password:
-        print("\nAttempting auto-login...")
-
-        if login(browser, username, password):
-            print("\nAuto-login successful!")
-            return True
-        else:
-            print("Auto-login failed. Switching to manual login.")
-            login_attempts = 1
-    
-    while login_attempts < max_login_attempts:            
-        username = input("\nEmail address: ")
-        password = getpass.getpass("Password (hidden): ")
-        
-        print("\nVerifying credentials...")
-        if login(browser, username, password):
-            print("\nAuthentication successful!")
-            print("\nDo You Want to Save Your Credentials and Using Autologin?")
-            print("0. No | 1. Yes")
-            option = input("\nInput Your Choice (numbers only):")
-            if option:
-                config["User"]["email"] = username
-                config["User"]["password"] = password
-                config["User"]["auto_login"] = True
-                save_config(config)
-                print("\nCredentials Saved")
-             
-            break
-            
-        login_attempts += 1
-        remaining = max_login_attempts - login_attempts
-        
-        if remaining > 0:
-            print(f"Login failed. {remaining} attempts remaining.")
-        else:
-            print("Maximum login attempts reached. Exiting.")
-            return
 
 def scraper(browser, details_level, file_format=None, job_search_list=None):        
 
