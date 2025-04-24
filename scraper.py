@@ -175,11 +175,12 @@ def request_page(job_title, page_num, browser):
 def extract_job_links(html, job_title, details_level):
     if not html:
         return []
-        
-    jobs = html.find_all("a", class_="CompactOpportunityCardsc__JobCardTitleNoStyleAnchor-sc-dkg8my-12")
+    
+    cards = html.find_all("div", class_="CompactOpportunityCardsc__CompactJobCard-sc-dkg8my-4")    
     links = []
     
-    for job in jobs:
+    for card in cards:
+        job = card.find("a", class_="CompactOpportunityCardsc__JobCardTitleNoStyleAnchor-sc-dkg8my-12")
         
         if not job.has_attr('href') or not job.text:
             continue
@@ -189,7 +190,11 @@ def extract_job_links(html, job_title, details_level):
             if details_level == 1:
                 links.append({
                     "title": job.get_text(),
-                    "url": "https://glints.com" + url,
+                   "company": extract_text(card,".CompactOpportunityCardsc__CompanyLink-sc-dkg8my-14"),
+                    "salary":extract_text(card,".CompactOpportunityCardsc__SalaryWrapper-sc-dkg8my-32"),
+                    "location":extract_text(card,".CardJobLocation__LocationWrapper-sc-v7ofa9-0"),
+                    "updated":extract_text(card,".CompactOpportunityCardsc__UpdatedAtMessage-sc-dkg8my-26"),
+                    "url": "https://glints.com" + job['href'],  
                     "timestamp": get_timestamp(),
                     
                 })
@@ -239,9 +244,14 @@ def collect_job_links(job_title, browser, details_level):
 def get_timestamp():
     return datetime.now(timezone.utc).isoformat(timespec='seconds').replace(":", "-")
 
-def extract_text(soup, selector, default="No Data"):
+def extract_text(soup, selector, default="No Data", flag=0):
     element = soup.select_one(selector)
-    return element.get_text() if element else default
+    if element and flag:
+        return element.get_text(separator='\n', strip=True)
+    elif element:
+        return element.get_text()
+    else:
+        return default
 
 def extract_job_details(url, browser, details_level):
     full_url = "https://glints.com" + url
@@ -310,7 +320,7 @@ def extract_job_details(url, browser, details_level):
             }
         
         if details_level == 3:
-            description = extract_text(page, "DraftjsReadersc__ContentContainer-sc-zm0o3p-0 pVRwR")
+            description = extract_text(page, ".DraftjsReadersc__ContentContainer-sc-zm0o3p-0", flag=1)
             data["description"] = description
         
         return data
@@ -359,7 +369,7 @@ def save_to_json(jobs, job_name):
         print(f"Error saving to JSON: {e}")
         return False
 
-def save_to_csv(jobs, job_name):
+def save_to_csv(jobs, job_name, details_level):
     if not jobs:
         print(f"No data to save for '{job_name}'")
         return False
@@ -367,11 +377,11 @@ def save_to_csv(jobs, job_name):
     try:
         df = pl.DataFrame(jobs)
         
-
-        df = df.with_columns(
-            pl.col("skills requirements").map_elements(lambda x: ",".join(x) if isinstance(x, list) else "", return_dtype=pl.String),
-            pl.col("another requirements").map_elements(lambda x: ",".join(x) if isinstance(x, list) else "", return_dtype=pl.String)
-        )
+        if details_level >= 2:
+            df = df.with_columns(
+                pl.col("skills requirements").map_elements(lambda x: ",".join(x) if isinstance(x, list) else "", return_dtype=pl.String),
+                pl.col("another requirements").map_elements(lambda x: ",".join(x) if isinstance(x, list) else "", return_dtype=pl.String)
+            )
 
         output_path = create_output_path(job_name, "csv")
         df.write_csv(output_path, include_header=True)
@@ -502,13 +512,15 @@ def scraper(browser, details_level, file_format=None, job_search_list=None):
     for job_title in tqdm(job_search_list, desc="Processing job categories", leave=True):
 
         links = collect_job_links(job_title, browser, details_level)
-        
+            
         if not links:
             print(f"No job listings found for '{job_title}'. Skipping to next job title.")
             continue
-            
 
-        jobs = extract_all_job_details(links, browser, details_level)
+        if details_level == 1:
+            jobs = links
+        else:
+            jobs = extract_all_job_details(links, browser, details_level)
         
         if not jobs:
             print(f"Failed to extract any job details for '{job_title}'. Skipping to next job title.")
@@ -521,7 +533,7 @@ def scraper(browser, details_level, file_format=None, job_search_list=None):
             case "1":
                 save_to_json(jobs, job_title)
             case "2":
-                save_to_csv(jobs, job_title)
+                save_to_csv(jobs, job_title, details_level)
             case "3":
                 save_to_parquet(jobs, job_title)
     
@@ -542,7 +554,7 @@ def parse_arguments():
                         default='json', help='Output format (default: json)')
     parser.add_argument('-u', '--username', type=str, help='Glints account email')
     parser.add_argument('-p', '--password', type=str, help='Glints account password')
-    parser.add_argument('-d', '--details', type=str, choices=[1, 2, 3], default = 2,
+    parser.add_argument('-d', '--details', type=int, choices=[1, 2, 3], default = 2,
                         help="Scraping Detail (default: level 2)")
     
     args = parser.parse_args()
