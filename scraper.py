@@ -588,7 +588,14 @@ def main():
         if args.search:
             browser = initialize_browser(args.browser_code)
             if args.username and args.password:
-                login(browser, args.username, args.password)
+                succeed = login(browser, args.username, args.password)
+                config["User"]["email"] = args.username
+                config["User"]["password"] = args.password
+                
+                if not succeed:
+                    print("Your Credentials is Wrong!!!!")
+                    exit()
+                
             else:
                 login(browser, config["User"].get("email"), config["User"].get("password"))
             scraper(browser, args.details, args.format_code, args.search)
