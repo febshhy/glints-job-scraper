@@ -301,6 +301,8 @@ def extract_job_details(url, browser, details_level):
         company_industry = extract_text(page, ".AboutCompanySectionsc__CompanyIndustryAndSize-sc-c7oevo-7 > span:nth-child(1)", "Undisclosed")
         company_size = extract_text(page, ".AboutCompanySectionsc__CompanyIndustryAndSize-sc-c7oevo-7 > span:nth-child(3)", "Undisclosed")
         
+        post_updated = extract_text(page,".CompactOpportunityCardsc__UpdatedAtMessage-sc-dkg8my-26")
+        
         data = {
                 "title": title,
                 "salary": salary,
@@ -315,6 +317,7 @@ def extract_job_details(url, browser, details_level):
                 "company name": company_name,
                 "company industry": company_industry,
                 "company size": company_size,
+                "post updated": post_updated,
                 "timestamp": get_timestamp(),
                 "url": full_url,
             }
