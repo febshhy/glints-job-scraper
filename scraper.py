@@ -15,6 +15,7 @@ import os
 import json
 import time
 import argparse
+import psutil
 
 def get_config_path():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
@@ -584,7 +585,6 @@ def main():
     print("       GLINTS JOB MARKET INTELLIGENCE TOOL")
     print("="*60)
     config = load_config()
-    details = config["Scraping"].get("detail_level", 2)
     args = parse_arguments()
     
     try:
@@ -613,6 +613,7 @@ def main():
                 choice = input("\nInput Your Choice:")
                 browser = None
                 if choice == "1":
+                    details = config["Scraping"].get("detail_level", 2)
                     browser = initialize_browser()
                     login_sequence(browser, config)
                     scraper(browser, details)
@@ -640,4 +641,5 @@ def main():
                 print("Failed to cleanly close the browser, but exiting anyway.\n")
 
 if __name__ == "__main__":
+    
     main()

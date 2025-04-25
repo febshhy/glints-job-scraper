@@ -48,6 +48,27 @@ All fields from Level 1, plus:
 All fields from Level 2, plus:
 - `description` - Full Job Description
 
+
+# Performance Testing Results
+
+## Dataset Comparison
+
+### Large Dataset (18 pages, 78 listings - CSV)
+
+| Complexity Level | Run Time | Memory Usage | Storage Size |
+|------------------|----------|-------------|--------------|
+| Level 1          | 169 sec  | 92.23 MB    | 25 KB        |
+| Level 2          | 667 sec  | 90.93 MB    | 35 KB        |
+| Level 3          | 543 sec  | 93.23 MB    | 137 KB       |
+
+### Small Dataset (4 pages, 10 listings - CSV)
+
+| Complexity Level | Run Time | Memory Usage | Storage Size |
+|------------------|----------|-------------|--------------|
+| Level 1          | 45 sec   | 70.79 MB    | 4 KB         |
+| Level 2          | 105 sec  | 76.80 MB    | 5 KB         |
+| Level 3          | 110 sec  | 77.48 MB    | 13 KB        |
+
 ---
 
 ## ⚙️ Installation
