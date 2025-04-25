@@ -108,7 +108,7 @@ python scraper.py "job title" [options]
   - Level 1: Basic job information (fastest)
   - Level 2: Detailed job information (default)
   - Level 3: Comprehensive information including job description
-- '--no-login': Scraping without login
+- `--no-login`: Scraping without login
 
 ### Method 2: Interactive CLI
 
