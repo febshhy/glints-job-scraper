@@ -590,17 +590,18 @@ def main():
     try:
         if args.search:
             browser = initialize_browser(args.browser_code)
-            if args.username and args.password:
-                succeed = login(browser, args.username, args.password)
-                config["User"]["email"] = args.username
-                config["User"]["password"] = args.password
-                
-                if not succeed:
-                    print("Your Credentials is Wrong!!!!")
-                    exit()
-                
-            else:
-                login(browser, config["User"].get("email"), config["User"].get("password"))
+            # Add check for no-login argument
+            if not args.no_login:
+                if args.username and args.password:
+                    succeed = login(browser, args.username, args.password)
+                    config["User"]["email"] = args.username
+                    config["User"]["password"] = args.password
+                    
+                    if not succeed:
+                        print("Your Credentials is Wrong!!!!")
+                        exit()
+                else:
+                    login(browser, config["User"].get("email"), config["User"].get("password"))
             scraper(browser, args.details, args.format_code, args.search)
             
         else:        
@@ -615,7 +616,12 @@ def main():
                 if choice == "1":
                     details = config["Scraping"].get("detail_level", 2)
                     browser = initialize_browser()
-                    login_sequence(browser, config)
+                    print("\nDo you want to login to Glints?")
+                    print("0. No | 1. Yes")
+                    login_choice = input("\nInput Your Choice (numbers only):")
+                    
+                    if login_choice == "1":
+                        login_sequence(browser, config)
                     scraper(browser, details)
                 
                 if choice == "2":

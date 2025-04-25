@@ -3,8 +3,8 @@
 A simple Python-based CLI tool to scrape job listings from [Glints Indonesia](https://glints.com/id).  
 It searches for jobs based on user-defined keywords and exports the results in your preferred file format (`json`, `csv`, or `parquet`).
 
-> ⚠️ **Disclaimer:**  
-> For educational use only. No liability assumed.
+> ⚠️ **DISCLAIMER:**  
+> For educational purposes only. Using scraping tools, especially with login credentials, may violate the Computer Fraud and Abuse Act, Terms of Service, and other laws, potentially constituting a felony. Obtain permission before scraping any website. User assumes all legal responsibility. No liability assumed.
 
 
 ## 📋 Features
