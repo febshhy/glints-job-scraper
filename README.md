@@ -108,6 +108,7 @@ python scraper.py "job title" [options]
   - Level 1: Basic job information (fastest)
   - Level 2: Detailed job information (default)
   - Level 3: Comprehensive information including job description
+- '--no-login': Scraping without login
 
 ### Method 2: Interactive CLI
 
@@ -119,16 +120,17 @@ python scraper.py
 
 In interactive mode, you'll be prompted to:
 1. In main menu, you can choose settings or job searchs
-2. Choose which browser to use (Firefox or Chrome)
-3. Enter your Glints credentials (email and password)
-4. Choose if you want to save the credentials and do an auto login or not
-5. Provide job search keywords (comma-separated) (trailing whitespace is accepted)  
+2. You can choose to login or not 
+3. Choose which browser to use (Firefox or Chrome)
+4. Enter your Glints credentials (email and password)
+5. Choose if you want to save the credentials and do an auto login or not
+6. Provide job search keywords (comma-separated) (trailing whitespace is accepted)  
    Example:  
    ```
    data analyst, data scientist, data engineer
    ```
-6. Choose the desired export format: `json`, `csv`, or `parquet`
-7. Select a scraping detail level (1, 2, or 3)
+7. Choose the desired export format: `json`, `csv`, or `parquet`
+8. Select a scraping detail level (1, 2, or 3)
 
 In settings, there is:
 1. Change Auto-login Setting - Turn on or turn off auto-login function

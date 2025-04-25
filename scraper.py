@@ -15,7 +15,6 @@ import os
 import json
 import time
 import argparse
-import psutil
 
 def get_config_path():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
@@ -563,6 +562,7 @@ def parse_arguments():
     parser.add_argument('-p', '--password', type=str, help='Glints account password')
     parser.add_argument('-d', '--details', type=int, choices=[1, 2, 3], default = 2,
                         help="Scraping Detail (default: level 2)")
+    parser.add_argument('--no-login', action='store_true', help='Skip the login process')
     
     args = parser.parse_args()
     
@@ -590,7 +590,6 @@ def main():
     try:
         if args.search:
             browser = initialize_browser(args.browser_code)
-            # Add check for no-login argument
             if not args.no_login:
                 if args.username and args.password:
                     succeed = login(browser, args.username, args.password)
