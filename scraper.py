@@ -393,8 +393,8 @@ def extract_job_details(url, browser, details_level):
         if not page:
             return None
 
-        container = page.select_one(
-            "div.TopFoldsc__JobOverViewInfoContainer-sc-1fbktg5-8.jxryeM"
+        container = soup.select_one(
+            "html.notranslate body div#app div#__next div div.MainContainersc__MainLayout-sc-xmyke8-0.desvou div.MainContainersc__MainBody-sc-xmyke8-2.drnzBQ div.GlintsContainer-sc-usaans-0.fNeuNN div.Opportunitysc__Container-sc-gb4ubh-2.cXvpcO main.Opportunitysc__Main-sc-gb4ubh-3.kpUoLB div.TopFoldsc__JobOverViewInfoContainer-sc-1fbktg5-8.jxryeM"
         )
         title = extract_text(
             page,
@@ -438,15 +438,15 @@ def extract_job_details(url, browser, details_level):
             requirements = [req.get_text() for req in extra_requirements[3:] if req]
 
         province = extract_text(
-            page,
+            soup,
             "label.BreadcrumbStyle__BreadcrumbItemWrapper-sc-eq3cq-0:nth-child(3) > a:nth-child(1)",
         )
         city = extract_text(
-            page,
+            soup,
             "label.BreadcrumbStyle__BreadcrumbItemWrapper-sc-eq3cq-0:nth-child(4) > a:nth-child(1)",
         )
         district = extract_text(
-            page,
+            soup,
             "label.BreadcrumbStyle__BreadcrumbItemWrapper-sc-eq3cq-0:nth-child(5) > a:nth-child(1)",
         )
 
