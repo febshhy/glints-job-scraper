@@ -294,40 +294,38 @@ def extract_job_links(html, job_title, details_level):
 def collect_job_links(job_title, browser, details_level):
     print(f"\nAnalyzing job market for: {job_title}")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    
+
     all_links = []
-    first_page = request_page(job_title, 1, browser)
+    page_num = 1
     
-    if not first_page:
-        print(f"No results found for '{job_title}' or error loading first page")
-        return []
-        
-    first_page_links = extract_job_links(first_page, job_title, details_level)
-    all_links.extend(first_page_links)
     
-  
-    pagination_buttons = first_page.find_all("button", class_="UnstyledButton-sc-zp0cw8-0 AnchorPaginationsc__Number-sc-8wke03-3 dYSdtB bkvUQn")
-    
-    if not pagination_buttons:
-        print(f"Found {len(all_links)} job listings on a single page")
-        return all_links
-        
-    try:
-        last_page_num = int(pagination_buttons[-1].get_text())
-        print(f"Found {last_page_num} pages of results to process")
-        
-        for page_num in tqdm(range(2, last_page_num + 1), desc=f"Collecting {job_title} listings", colour='green'):
+    with tqdm(desc=f"Collecting {job_title} listings", colour='green') as pbar:
+        while True:
+
             page = request_page(job_title, page_num, browser)
-            if page:
-                page_links = extract_job_links(page, job_title, details_level)
-                all_links.extend(page_links)
             
-        print(f"Successfully gathered {len(all_links)} {job_title} listings")
-        return all_links
-        
-    except (ValueError, IndexError) as e:
-        print(f"Error parsing pagination: {str(e)}")
-        return all_links  
+            if not page:
+                print(f"\nError or no content on page {page_num}. Stopping.")
+                break
+                
+
+            page_links = extract_job_links(page, job_title, details_level)
+            
+
+            if not page_links:
+                print(f"\nNo new jobs found on page {page_num}. Reached the end.")
+                break
+                
+            all_links.extend(page_links)
+            
+      
+            page_num += 1
+            pbar.update(1) 
+            
+            time.sleep(0.5) 
+
+    print(f"\nSuccessfully gathered {len(all_links)} {job_title} listings from {page_num - 1} pages.")
+    return all_links
 
 
 
@@ -339,48 +337,43 @@ def extract_job_details(url, browser, details_level):
         time.sleep(randint(1, 3))  
         
         WebDriverWait(browser, 15).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, ".TopFoldsc__JobOverViewTitle-sc-1fbktg5-3"))
+            EC.presence_of_element_located((By.CSS_SELECTOR, "main.Opportunitysc__Main-sc-gb4ubh-3.kpUoLB"))
         )
         
         html = browser.page_source
         soup = BeautifulSoup(html, "html.parser")
-        page = soup.find(id="__next")
-        
+        page = soup.select_one("html.notranslate body div#app div#__next div div.MainContainersc__MainLayout-sc-xmyke8-0.desvou div.MainContainersc__MainBody-sc-xmyke8-2.drnzBQ div.GlintsContainer-sc-usaans-0.fNeuNN div.Opportunitysc__Container-sc-gb4ubh-2.cXvpcO main.Opportunitysc__Main-sc-gb4ubh-3.kpUoLB")
+
         if not page:
             return None
         
-
-        title = extract_text(page, "h1.TopFoldsc__JobOverViewTitle-sc-1fbktg5-3", "No Title")
-        education = extract_text(page, "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(4) > span:nth-child(2)", "No Requirement")
-        experience = extract_text(page, "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(5)", "No Requirement")
+        title = extract_text(page,"h1.TopFoldsc__JobOverViewTitle-sc-1fbktg5-3")
+        salary = extract_text(page, "span.TopFoldsc__BasicSalary-sc-1fbktg5-13", "Undisclosed")
         job_type = extract_text(page, "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(3)", "Undisclosed")
-        salary = extract_text(page, ".TopFoldsc__BasicSalary-sc-1fbktg5-13", "Undisclosed")
-        
-   
+        education = extract_text(page, "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(4)", "No Requirement")
+        experience = extract_text(page, "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(5)", "No Requirement")
+
         skills = []
         container_skill = page.find("div", class_="Opportunitysc__SkillsContainer-sc-gb4ubh-10 jccjri")
         if container_skill:
             skills_raw = container_skill.find_all("label", class_="TagStyle__TagContent-sc-66xi2f-0 iFeugN tag-content")
             skills = [skill.get_text() for skill in skills_raw if skill]
-        
+ 
  
         requirements = []
         extra_requirements = page.find_all("div", class_="TagStyle-sc-r1wv7a-4 bJWZOt JobRequirementssc__Tag-sc-15g5po6-3 cIkSrV")
         if extra_requirements and len(extra_requirements) > 3:
             requirements = [req.get_text() for req in extra_requirements[3:] if req]
-        
   
         province = extract_text(page, "label.BreadcrumbStyle__BreadcrumbItemWrapper-sc-eq3cq-0:nth-child(3) > a:nth-child(1)")
         city = extract_text(page, "label.BreadcrumbStyle__BreadcrumbItemWrapper-sc-eq3cq-0:nth-child(4) > a:nth-child(1)")
         district = extract_text(page, "label.BreadcrumbStyle__BreadcrumbItemWrapper-sc-eq3cq-0:nth-child(5) > a:nth-child(1)")
-        
  
         company_name = extract_text(page, ".AboutCompanySectionsc__Title-sc-c7oevo-6 > a:nth-child(2)", "Undisclosed")
         company_industry = extract_text(page, ".AboutCompanySectionsc__CompanyIndustryAndSize-sc-c7oevo-7 > span:nth-child(1)", "Undisclosed")
         company_size = extract_text(page, ".AboutCompanySectionsc__CompanyIndustryAndSize-sc-c7oevo-7 > span:nth-child(3)", "Undisclosed")
-        
         post_updated = extract_text(page,".CompactOpportunityCardsc__UpdatedAtMessage-sc-dkg8my-26")
-        
+ 
         data = {
                 "title": title,
                 "salary": salary,
@@ -399,7 +392,7 @@ def extract_job_details(url, browser, details_level):
                 "timestamp": get_timestamp(),
                 "url": full_url,
             }
-        
+            
         if details_level == 3:
             description = extract_text(page, ".DraftjsReadersc__ContentContainer-sc-zm0o3p-0", flag=1)
             data["description"] = description
@@ -409,6 +402,7 @@ def extract_job_details(url, browser, details_level):
     except TimeoutException:
         print(f"Timeout while loading job details for {full_url}")
         return None
+        
     except Exception as e:
         print(f"Error extracting job details for {full_url}: {str(e)}")
         return None
@@ -553,7 +547,7 @@ def parse_arguments():
         formatter_class=argparse.RawTextHelpFormatter
     )
     
-    parser.add_argument('search', type=str, help='Job titles to search (add quotation "devops")')
+    parser.add_argument('search',nargs='?', default=None, type=str, help='Job titles to search (add quotation "devops")')
     parser.add_argument('-b', '--browser', type=str, choices=['chrome', 'firefox'], 
                         default='firefox', help='Browser to use (default: firefox)')
     parser.add_argument('-f', '--format', type=str, choices=['json', 'csv', 'parquet'], 
