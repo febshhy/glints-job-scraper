@@ -347,11 +347,12 @@ def extract_job_details(url, browser, details_level):
         if not page:
             return None
         
-        title = extract_text(page,"h1.TopFoldsc__JobOverViewTitle-sc-1fbktg5-3")
-        salary = extract_text(page, "span.TopFoldsc__BasicSalary-sc-1fbktg5-13", "Undisclosed")
-        job_type = extract_text(page, "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(3)", "Undisclosed")
-        education = extract_text(page, "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(4)", "No Requirement")
-        experience = extract_text(page, "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(5)", "No Requirement")
+        container = page.select_one("div.TopFoldsc__JobOverViewInfoContainer-sc-1fbktg5-8.jxryeM")
+        title = extract_text(page,"div.TopFoldsc__CompanyAndJobInfo-sc-1fbktg5-0.dCstpC div.TopFoldsc__JobOverViewContainer-sc-1fbktg5-2.cXjTPy div div.TopFoldsc__JobOverviewHeader-sc-1fbktg5-20.gLROsm h1.TopFoldsc__JobOverViewTitle-sc-1fbktg5-3.fwLnaN")
+        salary = extract_text(container, "span.TopFoldsc__BasicSalary-sc-1fbktg5-13", "Undisclosed")
+        job_type = extract_text(container, "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(3)", "Undisclosed")
+        education = extract_text(container, "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(4)", "No Requirement")
+        experience = extract_text(container, "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(5)", "No Requirement")
 
         skills = []
         container_skill = page.find("div", class_="Opportunitysc__SkillsContainer-sc-gb4ubh-10 jccjri")
@@ -402,7 +403,7 @@ def extract_job_details(url, browser, details_level):
     except TimeoutException:
         print(f"Timeout while loading job details for {full_url}")
         return None
-        
+
     except Exception as e:
         print(f"Error extracting job details for {full_url}: {str(e)}")
         return None
