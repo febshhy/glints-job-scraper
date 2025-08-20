@@ -34,15 +34,21 @@ Basic job information:
 
 ### Level 2 (Default)
 All fields from Level 1, plus:
-- `job_type` - Work Setting & Employment Type
-- `skills_requirements` - List of Skills Required
-- `education_requirements` - Minimum Education Level Required
-- `another_requirements` - Additional Requirements (e.g., age, gender)
-- `location_province` - Province
-- `location_city` - City
-- `location_district` - District
-- `company_industry` - Industry
-- `company_size` - Number of Employees
+- `minimum salary` - Minimum Salary
+- `maximum salary` - Maximum Salary
+- `currency` - Salary Currency
+- `period` - Salary Period
+- `job type` - Employment Type & Work Setting
+- `employment type` - Type of employment (e.g., Full-time, Contract, Internship)
+- `work model` - Work setting (e.g., On-site, Hybrid, Remote)
+- `skills requirements` - List of Skills Required
+- `education requirements` - Minimum Education Level Required
+- `another requirements` - Additional Requirements (e.g., age, gender)
+- `location province` - Province
+- `location city` - City
+- `location district` - District
+- `company industry` - Industry
+- `company size` - Number of Employees
 
 ### Level 3 (Comprehensive)
 All fields from Level 2, plus:

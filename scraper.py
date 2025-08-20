@@ -261,7 +261,7 @@ def request_page(job_title, page_num, browser):
         )
 
         html = browser.page_source
-        soup = BeautifulSoup(html, "html.parser")
+        soup = BeautifulSoup(html, "lxml")
         return soup.find(id="__next")
 
     except TimeoutException:
@@ -370,6 +370,37 @@ def collect_job_links(job_title, browser, details_level):
     )
     return all_links
 
+def salary_detail(salary_range):
+    try:
+
+        number, period = salary_range.split('/')
+        
+        min_section, max_section = number.split(' - ')
+
+        # Extract letters (the currency) from the first part
+        currency = ''.join(filter(str.isalpha, min_section))
+        
+        # Extract only digits to get the numbers, then convert to integer
+        minimum_salary = int(''.join(filter(str.isdigit, min_section)))
+        maximum_salary = int(''.join(filter(str.isdigit, max_section)))
+
+        return currency, minimum_salary, maximum_salary, period
+        
+
+    except (ValueError, IndexError):
+        print(f"Warning: Could not parse salary string '{salary_range}'")
+        return salary_range, salary_range, salary_range, salary_range
+
+def jobtype_detail(job_type):
+    separator = " · "
+
+    if separator in job_type:
+        type = job_type.split(separator)
+        # employment type [type 0] & work model [type 1] 
+        return type[0], type[1]
+
+    else:
+        return job_type, job_type
 
 def extract_job_details(url, browser, details_level):
     full_url = "https://glints.com" + url
@@ -380,41 +411,46 @@ def extract_job_details(url, browser, details_level):
 
         WebDriverWait(browser, 15).until(
             EC.presence_of_element_located(
-                (By.CSS_SELECTOR, "main.Opportunitysc__Main-sc-gb4ubh-3.kpUoLB")
+                (By.CSS_SELECTOR, ".Opportunitysc__Main-sc-gb4ubh-3")
             )
         )
 
+        WebDriverWait(browser, 15).until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, ".TopFoldsc__JobOverViewTitle-sc-1fbktg5-3")
+            )
+        )
+        
         html = browser.page_source
-        soup = BeautifulSoup(html, "html.parser")
+        soup = BeautifulSoup(html, "lxml")
         page = soup.select_one(
-            "html.notranslate body div#app div#__next div div.MainContainersc__MainLayout-sc-xmyke8-0.desvou div.MainContainersc__MainBody-sc-xmyke8-2.drnzBQ div.GlintsContainer-sc-usaans-0.fNeuNN div.Opportunitysc__Container-sc-gb4ubh-2.cXvpcO main.Opportunitysc__Main-sc-gb4ubh-3.kpUoLB"
+            ".Opportunitysc__Main-sc-gb4ubh-3"
         )
 
         if not page:
             return None
 
-        container = soup.select_one(
-            "html.notranslate body div#app div#__next div div.MainContainersc__MainLayout-sc-xmyke8-0.desvou div.MainContainersc__MainBody-sc-xmyke8-2.drnzBQ div.GlintsContainer-sc-usaans-0.fNeuNN div.Opportunitysc__Container-sc-gb4ubh-2.cXvpcO main.Opportunitysc__Main-sc-gb4ubh-3.kpUoLB div.TopFoldsc__JobOverViewInfoContainer-sc-1fbktg5-8.jxryeM"
-        )
         title = extract_text(
             page,
-            "div.TopFoldsc__CompanyAndJobInfo-sc-1fbktg5-0.dCstpC div.TopFoldsc__JobOverViewContainer-sc-1fbktg5-2.cXjTPy div div.TopFoldsc__JobOverviewHeader-sc-1fbktg5-20.gLROsm h1.TopFoldsc__JobOverViewTitle-sc-1fbktg5-3.fwLnaN",
+            ".TopFoldsc__JobOverViewTitle-sc-1fbktg5-3",
         )
-        salary = extract_text(
-            container, "span.TopFoldsc__BasicSalary-sc-1fbktg5-13", "Undisclosed"
+        salary_range = extract_text(
+            page, ".TopFoldsc__BasicSalary-sc-1fbktg5-13", "Undisclosed"
         )
+        currency, minimum_salary, maximum_salary, period = salary_detail(salary_range)
         job_type = extract_text(
-            container,
+            page,
             "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(3)",
             "Undisclosed",
         )
+        employment_type, work_model = jobtype_detail(job_type)
         education = extract_text(
-            container,
+            page,
             "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(4)",
             "No Requirement",
         )
         experience = extract_text(
-            container,
+            page,
             "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(5)",
             "No Requirement",
         )
@@ -471,8 +507,14 @@ def extract_job_details(url, browser, details_level):
 
         data = {
             "title": title,
-            "salary": salary,
+            "salary range": salary_range,
+            "minimum salary": minimum_salary,
+            "maximum_salary": maximum_salary,
+            "currency": currency,
+            "period": period,
             "job type": job_type,
+            "employment type": employment_type,
+            "work model": work_model,
             "skills requirements": skills,
             "education requirements": education,
             "experience requirements": experience,
