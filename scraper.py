@@ -15,10 +15,15 @@ import os
 import json
 import time
 import argparse
+import tracemalloc
 
 
 def get_config_path():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+    try:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    except NameError:
+        base_path = os.getcwd()
+    return os.path.join(base_path, "config.json")
 
 
 def load_config():
@@ -41,7 +46,6 @@ def load_config():
 
 
 def save_config(config):
-    """Save configuration to file"""
     config_path = get_config_path()
     with open(config_path, "w") as f:
         json.dump(config, f, indent=4)
@@ -90,27 +94,27 @@ def login(browser, username, password):
 
     try:
         browser.get("https://glints.com/id/login")
-        WebDriverWait(browser, 10).until(
+        WebDriverWait(browser, timeout=10).until(
             EC.presence_of_element_located(
                 (By.CSS_SELECTOR, "a.LinkStyle__StyledLink-sc-usx229-0:nth-child(3)")
             )
         ).click()
 
-        WebDriverWait(browser, 10).until(
+        WebDriverWait(browser, timeout=10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "#login-form-email"))
         ).send_keys(username)
 
-        WebDriverWait(browser, 10).until(
+        WebDriverWait(browser, timeout=10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "#login-form-password"))
         ).send_keys(password)
 
-        WebDriverWait(browser, 10).until(
+        WebDriverWait(browser, timeout=10).until(
             EC.presence_of_element_located(
                 (By.CSS_SELECTOR, ".ButtonStyle__SolidShadowBtn-sc-jyb3o2-3")
             )
         ).click()
 
-        WebDriverWait(browser, 10).until(
+        WebDriverWait(browser, timeout=10).until(
             EC.any_of(
                 EC.presence_of_element_located(
                     (By.CSS_SELECTOR, ".ParagraphStyles__Paragraph-sc-1w5f8q5-0")
@@ -168,7 +172,7 @@ def login_sequence(browser, config):
             print("\nDo You Want to Save Your Credentials and Using Autologin?")
             print("0. No | 1. Yes")
             option = input("\nInput Your Choice (numbers only):")
-            if option:
+            if option == "1":
                 config["User"]["email"] = username
                 config["User"]["password"] = password
                 config["User"]["auto_login"] = True
@@ -188,7 +192,6 @@ def login_sequence(browser, config):
 
 
 def settings_menu(config):
-    """Display and handle settings menu"""
     print("\n" + "=" * 60)
     print(" SETTINGS")
     print("=" * 60)
@@ -248,35 +251,40 @@ def settings_menu(config):
 
 
 def request_page(job_title, page_num, browser):
-    try:
-        time.sleep(randint(2, 5))
+    url = f"https://glints.com/id/opportunities/jobs/explore?keyword={job_title}&country=ID&locationName=All+Cities%2FProvinces&lowestLocationLevel=1&page={page_num}"
+    retries = 0
+    while retries <= 5:
+        try:
+            time.sleep(randint(1, 5))
+            browser.get(url)
 
-        url = f"https://glints.com/id/opportunities/jobs/explore?keyword={job_title}&country=ID&locationName=All+Cities%2FProvinces&lowestLocationLevel=1&page={page_num}"
-        browser.get(url)
-
-        WebDriverWait(browser, 15).until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, "div.JobCardsc__JobcardContainer-sc-hmqj50-0")
+            WebDriverWait(browser, timeout=60).until(
+                EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, "div.JobCardsc__JobcardContainer-sc-hmqj50-0")
+                )
             )
-        )
 
-        html = browser.page_source
-        soup = BeautifulSoup(html, "lxml")
-        return soup.find(id="__next")
+            html = browser.page_source
+            soup = BeautifulSoup(html, "lxml")
+            return soup.find(id="__next")
 
-    except TimeoutException:
-        print(f"\nTimeout loading page {page_num} for '{job_title}'. Skipping...")
-        return None
-    except WebDriverException as e:
-        print(
-            f"\nBrowser error on page {page_num} for '{job_title}': {str(e)}. Skipping..."
-        )
-        return None
-    except Exception as e:
-        print(
-            f"\nUnexpected error loading page {page_num} for '{job_title}': {str(e)}. Skipping..."
-        )
-        return None
+        except TimeoutException:
+            retries += 1
+            print(
+                f"\nTimeout loading page {page_num} for '{job_title}'. Retrying {retries}/5"
+            )
+
+        except WebDriverException as e:
+            retries += 1
+            print(
+                f"\nBrowser error on page {page_num} for '{job_title}': {str(e)}. Retrying {retries}/5"
+            )
+
+        except Exception as e:
+            retries += 1
+            print(
+                f"\nUnexpected error loading page {page_num} for '{job_title}': {str(e)}. Retrying {retries}/5"
+            )
 
 
 def extract_text(soup, selector, default="No Data", flag=0):
@@ -291,12 +299,11 @@ def extract_text(soup, selector, default="No Data", flag=0):
 
 def extract_job_links(html, job_title, details_level):
     if not html:
-        return []
+        return
 
     cards = html.find_all(
         "div", class_="CompactOpportunityCardsc__CompactJobCard-sc-dkg8my-4"
     )
-    links = []
 
     for card in cards:
         job = card.find(
@@ -304,45 +311,41 @@ def extract_job_links(html, job_title, details_level):
             class_="CompactOpportunityCardsc__JobCardTitleNoStyleAnchor-sc-dkg8my-12",
         )
 
-        if not job.has_attr("href") or not job.text:
+        if not job or not job.has_attr("href") or not job.text:
             continue
 
         job_validation = job.text.strip().lower()
         if job_title.lower() in job_validation:
             if details_level == 1:
-                links.append(
-                    {
-                        "title": job.get_text(),
-                        "company": extract_text(
-                            card, ".CompactOpportunityCardsc__CompanyLink-sc-dkg8my-14"
-                        ),
-                        "salary": extract_text(
-                            card,
-                            ".CompactOpportunityCardsc__SalaryWrapper-sc-dkg8my-32",
-                        ),
-                        "location": extract_text(
-                            card, ".CardJobLocation__LocationWrapper-sc-v7ofa9-0"
-                        ),
-                        "updated": extract_text(
-                            card,
-                            ".CompactOpportunityCardsc__UpdatedAtMessage-sc-dkg8my-26",
-                        ),
-                        "url": "https://glints.com" + job["href"],
-                        "timestamp": get_timestamp(),
-                    }
-                )
+                yield {
+                    "title": job.get_text(),
+                    "company": extract_text(
+                        card, ".CompactOpportunityCardsc__CompanyLink-sc-dkg8my-14"
+                    ),
+                    "salary": extract_text(
+                        card,
+                        ".CompactOpportunityCardsc__SalaryWrapper-sc-dkg8my-32",
+                    ),
+                    "location": extract_text(
+                        card, ".CardJobLocation__LocationWrapper-sc-v7ofa9-0"
+                    ),
+                    "updated": extract_text(
+                        card,
+                        ".CompactOpportunityCardsc__UpdatedAtMessage-sc-dkg8my-26",
+                    ),
+                    "url": "https://glints.com" + job["href"],
+                    "timestamp": get_timestamp(),
+                }
             else:
-                links.append(job["href"])
-
-    return links
+                yield job["href"]
 
 
 def collect_job_links(job_title, browser, details_level):
     print(f"\nAnalyzing job market for: {job_title}")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-    all_links = []
     page_num = 1
+    total_links = 0
 
     with tqdm(desc=f"Collecting {job_title} listings", colour="green") as pbar:
         while True:
@@ -352,210 +355,211 @@ def collect_job_links(job_title, browser, details_level):
                 print(f"\nError or no content on page {page_num}. Stopping.")
                 break
 
-            page_links = extract_job_links(page, job_title, details_level)
+            page_links_generator = extract_job_links(page, job_title, details_level)
+            
+            links_on_page = 0
+            for link in page_links_generator:
+                yield link
+                links_on_page += 1
+                total_links +=1
 
-            if not page_links:
+            if links_on_page == 0:
                 print(f"\nNo new jobs found on page {page_num}. Reached the end.")
                 break
 
-            all_links.extend(page_links)
-
             page_num += 1
+            pbar.set_description(f"Crawling page {page_num} | Total links found: {total_links}")
             pbar.update(1)
-
             time.sleep(0.5)
+    
+    print(f"\nSuccessfully gathered {total_links} {job_title} listings from {page_num - 1} pages.")
 
-    print(
-        f"\nSuccessfully gathered {len(all_links)} {job_title} listings from {page_num - 1} pages."
-    )
-    return all_links
 
 def salary_detail(salary_range):
     try:
-
-        number, period = salary_range.split('/')
-        
-        min_section, max_section = number.split(' - ')
-
-        # Extract letters (the currency) from the first part
-        currency = ''.join(filter(str.isalpha, min_section))
-        
-        # Extract only digits to get the numbers, then convert to integer
-        minimum_salary = int(''.join(filter(str.isdigit, min_section)))
-        maximum_salary = int(''.join(filter(str.isdigit, max_section)))
-
-        return currency, minimum_salary, maximum_salary, period
-        
+        separator = " - "
+        if separator not in salary_range:
+            number, period = salary_range.split("/")
+            currency = "".join(filter(str.isalpha, number))
+            salary_value = int("".join(filter(str.isdigit, number)))
+            return currency, salary_value, salary_value, period
+        else:
+            number, period = salary_range.split("/")
+            min_section, max_section = number.split(separator)
+            currency = "".join(filter(str.isalpha, min_section))
+            minimum_salary = int("".join(filter(str.isdigit, min_section)))
+            maximum_salary = int("".join(filter(str.isdigit, max_section)))
+            return currency, minimum_salary, maximum_salary, period
 
     except (ValueError, IndexError):
-        print(f"Warning: Could not parse salary string '{salary_range}'")
-        return salary_range, salary_range, salary_range, salary_range
+        return "Undisclosed", 0, 0, "Undisclosed"
+
 
 def jobtype_detail(job_type):
     separator = " · "
-
     if separator in job_type:
-        type = job_type.split(separator)
-        # employment type [type 0] & work model [type 1] 
-        return type[0], type[1]
-
+        type_parts = job_type.split(separator)
+        return type_parts[0], type_parts[1]
     else:
-        return job_type, job_type
+        return job_type, "Not Specified"
+
 
 def extract_job_details(url, browser, details_level):
     full_url = "https://glints.com" + url
+    retries = 0
+    while retries <= 5:
+        try:
+            time.sleep(randint(1, 5))
+            browser.get(full_url)
 
-    try:
-        browser.get(full_url)
-        time.sleep(randint(1, 3))
-
-        WebDriverWait(browser, 15).until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, ".Opportunitysc__Main-sc-gb4ubh-3")
+            WebDriverWait(browser, timeout=60).until(
+                EC.presence_of_element_located(
+                    (
+                        By.XPATH,
+                        "/html/body/div[2]/div/div[1]/div[2]/div[2]/div[2]/div/main/div[1]/div[2]/div/div[1]/h1",
+                    )
+                )
             )
-        )
 
-        WebDriverWait(browser, 15).until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, ".TopFoldsc__JobOverViewTitle-sc-1fbktg5-3")
+            html = browser.page_source
+            soup = BeautifulSoup(html, "lxml")
+            page = soup.select_one(".Opportunitysc__Main-sc-gb4ubh-3")
+
+            if not page:
+                return None
+
+            container = page.select_one(
+                ".TopFoldsc__JobOverViewInfoContainer-sc-1fbktg5-8"
             )
-        )
-        
-        html = browser.page_source
-        soup = BeautifulSoup(html, "lxml")
-        page = soup.select_one(
-            ".Opportunitysc__Main-sc-gb4ubh-3"
-        )
 
-        if not page:
-            return None
-
-        title = extract_text(
-            page,
-            ".TopFoldsc__JobOverViewTitle-sc-1fbktg5-3",
-        )
-        salary_range = extract_text(
-            page, ".TopFoldsc__BasicSalary-sc-1fbktg5-13", "Undisclosed"
-        )
-        currency, minimum_salary, maximum_salary, period = salary_detail(salary_range)
-        job_type = extract_text(
-            page,
-            "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(3)",
-            "Undisclosed",
-        )
-        employment_type, work_model = jobtype_detail(job_type)
-        education = extract_text(
-            page,
-            "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(4)",
-            "No Requirement",
-        )
-        experience = extract_text(
-            page,
-            "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(5)",
-            "No Requirement",
-        )
-
-        skills = []
-        container_skill = page.find(
-            "div", class_="Opportunitysc__SkillsContainer-sc-gb4ubh-10 jccjri"
-        )
-        if container_skill:
-            skills_raw = container_skill.find_all(
-                "label", class_="TagStyle__TagContent-sc-66xi2f-0 iFeugN tag-content"
+            title = extract_text(
+                page,
+                'h1[aria-label="Job Title"]',
             )
-            skills = [skill.get_text() for skill in skills_raw if skill]
-
-        requirements = []
-        extra_requirements = page.find_all(
-            "div",
-            class_="TagStyle-sc-r1wv7a-4 bJWZOt JobRequirementssc__Tag-sc-15g5po6-3 cIkSrV",
-        )
-        if extra_requirements and len(extra_requirements) > 3:
-            requirements = [req.get_text() for req in extra_requirements[3:] if req]
-
-        province = extract_text(
-            soup,
-            "label.BreadcrumbStyle__BreadcrumbItemWrapper-sc-eq3cq-0:nth-child(3) > a:nth-child(1)",
-        )
-        city = extract_text(
-            soup,
-            "label.BreadcrumbStyle__BreadcrumbItemWrapper-sc-eq3cq-0:nth-child(4) > a:nth-child(1)",
-        )
-        district = extract_text(
-            soup,
-            "label.BreadcrumbStyle__BreadcrumbItemWrapper-sc-eq3cq-0:nth-child(5) > a:nth-child(1)",
-        )
-
-        company_name = extract_text(
-            page,
-            ".AboutCompanySectionsc__Title-sc-c7oevo-6 > a:nth-child(2)",
-            "Undisclosed",
-        )
-        company_industry = extract_text(
-            page,
-            ".AboutCompanySectionsc__CompanyIndustryAndSize-sc-c7oevo-7 > span:nth-child(1)",
-            "Undisclosed",
-        )
-        company_size = extract_text(
-            page,
-            ".AboutCompanySectionsc__CompanyIndustryAndSize-sc-c7oevo-7 > span:nth-child(3)",
-            "Undisclosed",
-        )
-        post_updated = extract_text(
-            page, ".CompactOpportunityCardsc__UpdatedAtMessage-sc-dkg8my-26"
-        )
-
-        data = {
-            "title": title,
-            "salary range": salary_range,
-            "minimum salary": minimum_salary,
-            "maximum_salary": maximum_salary,
-            "currency": currency,
-            "period": period,
-            "job type": job_type,
-            "employment type": employment_type,
-            "work model": work_model,
-            "skills requirements": skills,
-            "education requirements": education,
-            "experience requirements": experience,
-            "another requirements": requirements,
-            "location (province)": province,
-            "location (city)": city,
-            "location (district)": district,
-            "company name": company_name,
-            "company industry": company_industry,
-            "company size": company_size,
-            "post updated": post_updated,
-            "timestamp": get_timestamp(),
-            "url": full_url,
-        }
-
-        if details_level == 3:
-            description = extract_text(
-                page, ".DraftjsReadersc__ContentContainer-sc-zm0o3p-0", flag=1
+            salary_range = extract_text(
+                container, "span.TopFoldsc__BasicSalary-sc-1fbktg5-13", "Undisclosed"
             )
-            data["description"] = description
+            currency, minimum_salary, maximum_salary, period = salary_detail(
+                salary_range
+            )
+            job_type = extract_text(
+                container,
+                "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(3)",
+                "Undisclosed",
+            )
+            employment_type, work_model = jobtype_detail(job_type)
+            education = extract_text(
+                container,
+                "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(4)",
+                "No Requirement",
+            )
+            experience = extract_text(
+                container,
+                "div.TopFoldsc__JobOverViewInfo-sc-1fbktg5-9:nth-child(5)",
+                "No Requirement",
+            )
 
-        return data
+            skills = []
+            container_skill = page.find(
+                "div", class_="Opportunitysc__SkillsContainer-sc-gb4ubh-10 jccjri"
+            )
+            if container_skill:
+                skills_raw = container_skill.find_all(
+                    "label", class_="TagStyle__TagContent-sc-66xi2f-0 iFeugN tag-content"
+                )
+                skills = [skill.get_text() for skill in skills_raw if skill]
 
-    except TimeoutException:
-        print(f"Timeout while loading job details for {full_url}")
-        return None
+            requirements = []
+            extra_requirements = page.find_all(
+                "div",
+                class_="TagStyle-sc-r1wv7a-4 bJWZOt JobRequirementssc__Tag-sc-15g5po6-3 cIkSrV",
+            )
+            if extra_requirements and len(extra_requirements) > 3:
+                requirements = [req.get_text() for req in extra_requirements[3:] if req]
 
-    except Exception as e:
-        print(f"Error extracting job details for {full_url}: {str(e)}")
-        return None
+            province = extract_text(
+                soup,
+                "label.BreadcrumbStyle__BreadcrumbItemWrapper-sc-eq3cq-0:nth-child(3) > a:nth-child(1)",
+            )
+            city = extract_text(
+                soup,
+                "label.BreadcrumbStyle__BreadcrumbItemWrapper-sc-eq3cq-0:nth-child(4) > a:nth-child(1)",
+            )
+            district = extract_text(
+                soup,
+                "label.BreadcrumbStyle__BreadcrumbItemWrapper-sc-eq3cq-0:nth-child(5) > a:nth-child(1)",
+            )
+
+            company_name = extract_text(
+                page,
+                ".AboutCompanySectionsc__Title-sc-c7oevo-6 > a:nth-child(2)",
+                "Undisclosed",
+            )
+            company_industry = extract_text(
+                page,
+                ".AboutCompanySectionsc__CompanyIndustryAndSize-sc-c7oevo-7 > span:nth-child(1)",
+                "Undisclosed",
+            )
+            company_size = extract_text(
+                page,
+                ".AboutCompanySectionsc__CompanyIndustryAndSize-sc-c7oevo-7 > span:nth-child(3)",
+                "Undisclosed",
+            )
+            post_updated = extract_text(
+                page, ".CompactOpportunityCardsc__UpdatedAtMessage-sc-dkg8my-26"
+            )
+
+            data = {
+                "title": title,
+                "salary range": salary_range,
+                "minimum salary": minimum_salary,
+                "maximum_salary": maximum_salary,
+                "currency": currency,
+                "period": period,
+                "job type": job_type,
+                "employment type": employment_type,
+                "work model": work_model,
+                "skills requirements": skills,
+                "education requirements": education,
+                "experience requirements": experience,
+                "another requirements": requirements,
+                "location (province)": province,
+                "location (city)": city,
+                "location (district)": district,
+                "company name": company_name,
+                "company industry": company_industry,
+                "company size": company_size,
+                "post updated": post_updated,
+                "timestamp": get_timestamp(),
+                "url": full_url,
+            }
+
+            if details_level == 3:
+                description = extract_text(
+                    page, ".DraftjsReadersc__ContentContainer-sc-zm0o3p-0", flag=1
+                )
+                data["description"] = description
+
+            return data
+
+        except TimeoutException:
+            retries += 1
+            print(
+                f"Timeout while loading job details for {full_url}. Retrying {retries}/5"
+            )
+
+        except Exception as e:
+            retries += 1
+            print(
+                f"Error extracting job details for {full_url}: {str(e)}. Retrying {retries}/5"
+            )
 
 
 def extract_all_job_details(links, browser, details_level):
-    jobs = []
-
     for link in tqdm(links, desc="Extracting detailed job information", colour="red"):
         job_details = extract_job_details(link, browser, details_level)
         if job_details:
-            jobs.append(job_details)
-
-    return jobs
+            yield job_details
 
 
 def create_output_path(job_name, format_name):
@@ -644,7 +648,8 @@ def scraper(browser, details_level, file_format=None, job_search_list=None):
         job_search_list = [
             item.strip() for item in job_searches.split(",") if item.strip()
         ]
-        print("Please enter at least one job title.")
+        if not job_search_list:
+            print("Please enter at least one job title.")
 
     print("\nData Export Configuration")
 
@@ -652,8 +657,8 @@ def scraper(browser, details_level, file_format=None, job_search_list=None):
 
     while file_format not in valid_formats:
         print("Select output format:")
-        print("  1. JSON  - Human-readable, ideal for further processing")
-        print("  2. CSV   - Compatible with spreadsheet applications")
+        print("  1. JSON   - Human-readable, ideal for further processing")
+        print("  2. CSV    - Compatible with spreadsheet applications")
         print("  3. Parquet - Efficient storage, best for data analysis")
         file_format = input("\nYour choice (1-3): ")
 
@@ -664,7 +669,7 @@ def scraper(browser, details_level, file_format=None, job_search_list=None):
     for job_title in tqdm(
         job_search_list, desc="Processing job categories", leave=True
     ):
-        links = collect_job_links(job_title, browser, details_level)
+        links = list(collect_job_links(job_title, browser, details_level))
 
         if not links:
             print(
@@ -675,7 +680,7 @@ def scraper(browser, details_level, file_format=None, job_search_list=None):
         if details_level == 1:
             jobs = links
         else:
-            jobs = extract_all_job_details(links, browser, details_level)
+            jobs = list(extract_all_job_details(links, browser, details_level))
 
         if not jobs:
             print(
@@ -761,10 +766,11 @@ def parse_arguments():
 
 def main():
     print("\n" + "=" * 60)
-    print("       GLINTS JOB MARKET INTELLIGENCE TOOL")
+    print("      GLINTS JOB MARKET INTELLIGENCE TOOL")
     print("=" * 60)
     config = load_config()
     args = parse_arguments()
+    browser = None
 
     try:
         if args.search:
@@ -772,13 +778,10 @@ def main():
             if not args.no_login:
                 if args.username and args.password:
                     succeed = login(browser, args.username, args.password)
-                    config["User"]["email"] = args.username
-                    config["User"]["password"] = args.password
-
                     if not succeed:
                         print("Your Credentials is Wrong!!!!")
-                        exit()
-                else:
+                        return
+                elif config["User"].get("auto_login"):
                     login(
                         browser,
                         config["User"].get("email"),
@@ -794,7 +797,7 @@ def main():
                 print("3. Exit")
 
                 choice = input("\nInput Your Choice:")
-                browser = None
+                
                 if choice == "1":
                     details = config["Scraping"].get("detail_level", 2)
                     browser = initialize_browser()
@@ -805,13 +808,20 @@ def main():
                     if login_choice == "1":
                         login_sequence(browser, config)
                     scraper(browser, details)
+                    # After scraping, quit the browser and reset for the next loop
+                    if browser:
+                        browser.quit()
+                        browser = None
 
-                if choice == "2":
+                elif choice == "2":
                     settings_menu(config)
 
-                if choice == "3":
+                elif choice == "3":
                     print("\nExiting program. Thank you for using This Tool.")
                     break
+                else:
+                    print("Invalid choice. Please enter a number between 1 and 3.")
+
 
     except KeyboardInterrupt:
         print("\n\nOperation interrupted by user. Shutting down...")
@@ -829,4 +839,16 @@ def main():
 
 
 if __name__ == "__main__":
+    tracemalloc.start()
+    start_time = time.perf_counter()
     main()
+    end_time = time.perf_counter()
+    current_mem, peak_mem = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    print("\n" + "=" * 60)
+    print("                 BENCHMARK RESULTS")
+    print("=" * 60)
+    print(f"Total Execution Time: {end_time - start_time:.2f} seconds")
+    print(f"Peak Memory Usage:    {peak_mem / 1024**2:.2f} MiB")
+    print("=" * 60 + "\n")
